@@ -17,11 +17,12 @@ void initRobot() {
     robot.animationProgress = 0.0f;
     robot.isAnimating = false;
     
-    // Vị trí cốc - trên mặt bàn, gần robot hơn để có thể với tới
-    robot.cupX = 2.5f;    // Giảm khoảng cách với robot
+    // Vị trí cốc - trên mặt bàn, điều chỉnh lại khoảng cách
+    robot.cupX = 2.8f;    // Điều chỉnh khoảng cách với robot
     robot.cupY = 0.1f;    // Đáy cốc ngay trên mặt bàn
     robot.cupZ = 0.0f;
     robot.cupInHand = false;
+    robot.isCupFull = false; // Thêm trạng thái cho cốc
 }
 
 // Bắt đầu animation
@@ -76,9 +77,11 @@ void updateAnimation() {
             robot.elbowAngle = -30.0f + smoothT * 5.0f;      // (-30 -> -25)
             robot.wristAngle = 60.0f; // Giữ nguyên góc cổ tay
 
-            if (smoothT > 0.5f && !robot.cupInHand) {
+            // Đánh dấu là cốc đã được cầm sau khi kẹp đủ chặt
+            if (smoothT > 0.5f) {
                 robot.cupInHand = true;
             }
+
             if (robot.animationProgress >= 1.0f) {
                 robot.currentPhase = PHASE_TURN_TO_MACHINE;
                 robot.animationProgress = 0.0f;
@@ -88,12 +91,14 @@ void updateAnimation() {
         }
         case PHASE_TURN_TO_MACHINE: {
             // Xoay người và tay về phía máy pha cafe
-            robot.bodyRotateY = smoothT * -90.0f;
+            robot.bodyRotateY = smoothT * -170.0f;
             
-            robot.shoulderRotateY = smoothT * -45.0f;
-            robot.shoulderRotateZ = -25.0f + smoothT * 15.0f; // (-25 -> -10)
-            robot.elbowAngle = -25.0f - smoothT * 75.0f;      // (-25 -> -100)
-            robot.wristAngle = 60.0f - smoothT * 105.0f;      // (60 -> -45)
+            // Điều chỉnh các góc để cánh tay vươn ra đúng vị trí máy pha cafe
+            // thay vì gập vào trong.
+            robot.shoulderRotateY = smoothT * 15.0f;         // Xoay vai để đưa tay về phía máy (tăng Z)
+            robot.shoulderRotateZ = -25.0f + smoothT * 5.0f;   // Nâng tay lên một chút (-25 -> -20)
+            robot.elbowAngle = 40.0f - smoothT * 55.0f;      // Duỗi thẳng khuỷu tay (-25 -> -80)
+            robot.wristAngle = 60.0f + smoothT * 40.0f;       // Giữ cốc thẳng đứng (60 -> 100)
 
             if (robot.animationProgress >= 1.0f) {
                 robot.currentPhase = PHASE_POUR_COFFEE;
@@ -103,11 +108,13 @@ void updateAnimation() {
             break;
         }
         case PHASE_POUR_COFFEE: {
-            // Giữ cốc dưới vòi, nghiêng để rót
-            float pourT = sin(robot.animationProgress * 3.14159f); // 0 -> 1 -> 0
-            robot.wristAngle = -45.0f + pourT * -30.0f; // Nghiêng cổ tay
+            // Giữ cốc ổn định dưới vòi trong khi hiệu ứng rót cafe diễn ra.
+            // Các khớp khác giữ nguyên giá trị từ cuối giai đoạn 3.
+            // Cổ tay giữ ở góc 100 độ để cốc thẳng đứng.
+            robot.wristAngle = 100.0f;
 
-            if (robot.animationProgress >= 1.5f) { // Giữ lâu hơn
+            if (robot.animationProgress >= 1.5f) { // Giữ lâu hơn để cafe "chảy"
+                robot.isCupFull = true; // Đánh dấu cốc đã đầy
                 robot.animationProgress = 0.0f;
                 robot.currentPhase = PHASE_RETURN_CUP;
                 printf("Giai đoạn 5: Quay trở lại vị trí ban đầu.\n");
@@ -119,10 +126,11 @@ void updateAnimation() {
             float returnT = 1.0f - smoothT;
             robot.bodyRotateY = returnT * -90.0f;
             
-            robot.shoulderRotateY = returnT * -45.0f;
-            robot.shoulderRotateZ = -25.0f + returnT * 15.0f;
-            robot.elbowAngle = -25.0f - returnT * 75.0f;
-            robot.wristAngle = 60.0f - returnT * 105.0f;
+            // Đảo ngược chuyển động của cánh tay từ vị trí máy pha cafe
+            robot.shoulderRotateY = returnT * 15.0f;
+            robot.shoulderRotateZ = -25.0f + returnT * 5.0f;
+            robot.elbowAngle = -25.0f - returnT * 55.0f;
+            robot.wristAngle = 60.0f + returnT * 40.0f;
 
             if (robot.animationProgress >= 1.0f) {
                 robot.currentPhase = PHASE_PLACE_CUP;
@@ -141,7 +149,7 @@ void updateAnimation() {
             if (smoothT > 0.5f) {
                 if (robot.cupInHand) {
                     robot.cupInHand = false;
-                    robot.cupX = 2.5f; // Cập nhật vị trí đặt cốc
+                    robot.cupX = 2.8f; // Cập nhật vị trí đặt cốc
                     robot.cupY = 0.1f;
                     robot.cupZ = 0.0f;
                 }
@@ -244,39 +252,62 @@ void drawRobotArm() {
     glPopMatrix();
 }
 
-// Vẽ bàn tay robot (gripper) chi tiết
+// Vẽ bàn tay robot (gripper) chi tiết để cầm cốc tự nhiên hơn
 void drawRobotHand() {
-    // Lòng bàn tay
+    // Lòng bàn tay (phần đế của kẹp)
     glPushMatrix();
     glColor3f(0.4f, 0.4f, 0.5f);
-    glScalef(0.2f, 0.3f, 0.2f);
-    glutSolidCube(1.0f);
+    glScalef(0.2f, 0.6f, 0.5f); // Làm lòng bàn tay rộng hơn
+    glutSolidCube(1.0);
     glPopMatrix();
     
-    // Ngón tay 1 (trên)
-    glPushMatrix();
-    glTranslatef(0.0f, 0.1f, 0.0f); 
-    glRotatef(-robot.fingerAngle, 0, 0, 1); 
-    glTranslatef(0.2f, 0.0f, 0.0f); 
-    
-    glPushMatrix();
+    // Vẽ các ngón tay cong để ôm cốc
     glColor3f(0.5f, 0.5f, 0.6f);
-    glScalef(0.4f, 0.1f, 0.1f);
-    glutSolidCube(1.0f);
-    glPopMatrix();
-    glPopMatrix();
     
-    // Ngón tay 2 (dưới)
+    // Ngón trên
     glPushMatrix();
-    glTranslatef(0.0f, -0.1f, 0.0f);
-    glRotatef(robot.fingerAngle, 0, 0, 1);
+    glTranslatef(0.1f, 0.25f, 0.0f); // Dịch lên trên
+    glRotatef(-robot.fingerAngle, 0, 0, 1); // Xoay ngón tay
+    
+    // Đốt 1
     glTranslatef(0.2f, 0.0f, 0.0f);
-
     glPushMatrix();
-    glColor3f(0.5f, 0.5f, 0.6f);
-    glScalef(0.4f, 0.1f, 0.1f);
-    glutSolidCube(1.0f);
+    glScalef(0.4f, 0.1f, 0.4f);
+    glutSolidCube(1.0);
     glPopMatrix();
+    
+    // Đốt 2 (cong vào)
+    glTranslatef(0.2f, 0.0f, 0.0f);
+    glRotatef(45.0f, 0, 0, 1);
+    glTranslatef(0.15f, -0.05f, 0.0f);
+    glPushMatrix();
+    glScalef(0.3f, 0.1f, 0.4f);
+    glutSolidCube(1.0);
+    glPopMatrix();
+    
+    glPopMatrix();
+    
+    // Ngón dưới
+    glPushMatrix();
+    glTranslatef(0.1f, -0.25f, 0.0f); // Dịch xuống dưới
+    glRotatef(robot.fingerAngle, 0, 0, 1); // Xoay ngón tay
+    
+    // Đốt 1
+    glTranslatef(0.2f, 0.0f, 0.0f);
+    glPushMatrix();
+    glScalef(0.4f, 0.1f, 0.4f);
+    glutSolidCube(1.0);
+    glPopMatrix();
+    
+    // Đốt 2 (cong vào)
+    glTranslatef(0.2f, 0.0f, 0.0f);
+    glRotatef(-45.0f, 0, 0, 1);
+    glTranslatef(0.15f, 0.05f, 0.0f);
+    glPushMatrix();
+    glScalef(0.3f, 0.1f, 0.4f);
+    glutSolidCube(1.0);
+    glPopMatrix();
+    
     glPopMatrix();
 }
 
@@ -401,6 +432,16 @@ void drawCup() {
     
     // Vẽ đáy cốc
     gluDisk(quad, 0.0f, 0.25f, 20, 1); 
+
+    // Vẽ cà phê nếu cốc đầy
+    if (robot.isCupFull) {
+        glColor3f(0.4f, 0.2f, 0.1f); // Màu cà phê
+        // Vẽ một cái đĩa gần miệng cốc
+        glPushMatrix();
+        glTranslatef(0.0f, 0.0f, 0.4f); // Nâng lên gần miệng cốc (chiều cao cốc là 0.5)
+        gluDisk(quad, 0.0f, 0.23f, 20, 1); // Bán kính nhỏ hơn một chút
+        glPopMatrix();
+    }
 
     // Vẽ tay cầm
     glPushMatrix();

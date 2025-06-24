@@ -37,6 +37,7 @@ struct RobotState {
     // Vị trí cốc
     float cupX, cupY, cupZ;
     bool cupInHand;
+    bool isCupFull; // Trạng thái cốc đầy hay rỗng
 };
 
 // Các hàm chính
