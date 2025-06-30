@@ -9,8 +9,8 @@ LIBS = -lGL -lGLU -lglut -lm
 # Tên file thực thi
 TARGET = coffee_robot
 
-# Các file mã nguồn và file object tương ứng
-SOURCES = coffee_robot.cpp robot.cpp
+# Source files - using simplified version
+SOURCES = coffee_robot.cpp robot_simple.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
 
 # Thêm cờ debug nếu biến DEBUG=1 được truyền vào
@@ -48,8 +48,8 @@ clean:
 install-deps:
 	@echo "📦 Kiểm tra hệ điều hành và cài đặt dependencies..."
 	@if [ -f /etc/arch-release ]; then \
-		echo "-> Phát hiện Arch Linux. Dùng pacman..."; \
-		sudo pacman -Syu --noconfirm --needed base-devel mesa glu freeglut; \
+		echo "-> Phát hiện Arch Linux. Dùng paru..."; \
+		paru -Syu --noconfirm --needed base-devel mesa glu freeglut; \
 	elif [ -f /etc/debian_version ]; then \
 		echo "-> Phát hiện Debian/Ubuntu. Dùng apt-get..."; \
 		sudo apt-get update && sudo apt-get install -y build-essential libgl1-mesa-dev libglu1-mesa-dev freeglut3-dev; \

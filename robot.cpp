@@ -1,28 +1,75 @@
 #include "robot.h"
 #include <cstdio>
 
+using namespace RobotConstants;
+
 // Biến toàn cục
 RobotState robot;
 
-// Khởi tạo robot
+// Utility functions for smoother animation
+float smoothStep(float t) {
+    if (t <= 0.0f) return 0.0f;
+    if (t >= 1.0f) return 1.0f;
+    return t * t * (3.0f - 2.0f * t);
+}
+
+float easeInOut(float t) {
+    if (t <= 0.0f) return 0.0f;
+    if (t >= 1.0f) return 1.0f;
+    return t < 0.5f ? 2.0f * t * t : 1.0f - 2.0f * (1.0f - t) * (1.0f - t);
+}
+
+// Resource Manager Implementation
+GLResourceManager::GLResourceManager() 
+    : cylinderQuad(gluNewQuadric(), gluDeleteQuadric)
+    , diskQuad(gluNewQuadric(), gluDeleteQuadric) {
+}
+
+GLResourceManager::~GLResourceManager() {
+    // Unique_ptr will automatically clean up
+}
+
+GLResourceManager& GLResourceManager::getInstance() {
+    static GLResourceManager instance;
+    return instance;
+}
+
+GLUquadric* GLResourceManager::getCylinderQuadric() {
+    return cylinderQuad.get();
+}
+
+GLUquadric* GLResourceManager::getDiskQuadric() {
+    return diskQuad.get();
+}
+
+void GLResourceManager::cleanup() {
+    // Force cleanup if needed
+    cylinderQuad.reset();
+    diskQuad.reset();
+}
+
+// Initialize robot to rest position
 void initRobot() {
+    // Reset all joint angles to neutral position
     robot.shoulderRotateY = 0.0f;
     robot.shoulderRotateZ = 0.0f;
     robot.elbowAngle = 0.0f;
-    robot.wristAngle = 0.0f;
-    robot.fingerAngle = 0.0f;
+    robot.wristRotateZ = 0.0f;
+    robot.wristRotateY = 0.0f;  // New wrist rotation for proper grip
+    robot.fingerAngle = 90.0f;  // Start with gripper open
     robot.bodyRotateY = 0.0f;
     
+    // Animation state
     robot.currentPhase = PHASE_IDLE;
     robot.animationProgress = 0.0f;
     robot.isAnimating = false;
     
-    // Vị trí cốc - trên mặt bàn, điều chỉnh lại khoảng cách
-    robot.cupX = 2.8f;    // Điều chỉnh khoảng cách với robot
-    robot.cupY = 0.1f;    // Đáy cốc ngay trên mặt bàn
+    // Cup position on table
+    robot.cupX = 2.8f;
+    robot.cupY = TABLE_HEIGHT;
     robot.cupZ = 0.0f;
     robot.cupInHand = false;
-    robot.isCupFull = false; // Thêm trạng thái cho cốc
+    robot.isCupFull = false;
 }
 
 // Bắt đầu animation
@@ -41,143 +88,174 @@ void resetRobot() {
     printf("\nRobot đã được reset về vị trí ban đầu. Nhấn SPACE để bắt đầu lại.\n");
 }
 
-// Cập nhật animation
+// SIMPLIFIED ANIMATION PHASES WITH PROPER GRIPPER ALIGNMENT
+
+void updatePhaseReachCup(float t) {
+    float smooth = easeInOut(t);
+    
+    // Reach toward cup with natural arm movement
+    robot.shoulderRotateZ = smooth * -25.0f;  // Lower arm down
+    robot.elbowAngle = smooth * -45.0f;       // Bend elbow to extend reach
+    robot.wristRotateZ = smooth * 30.0f;      // Angle wrist down toward cup
+    robot.wristRotateY = 0.0f;                // Keep wrist straight for now
+    robot.fingerAngle = 90.0f;                // Keep gripper open
+}
+
+void updatePhaseGrabCup(float t) {
+    float smooth = smoothStep(t);
+    
+    // Position gripper around cup and close
+    robot.wristRotateY = smooth * -90.0f;     // Rotate wrist to align gripper with cup
+    robot.fingerAngle = 90.0f - smooth * 50.0f; // Close gripper (90° -> 40°)
+    
+    // Slight lift after gripping
+    if (smooth > 0.7f) {
+        float liftT = (smooth - 0.7f) / 0.3f;
+        robot.shoulderRotateZ = -25.0f + liftT * 5.0f;
+        robot.cupInHand = true;
+    }
+}
+
+void updatePhaseTurnToMachine(float t) {
+    float smooth = easeInOut(t);
+    
+    // Smooth rotation to coffee machine
+    robot.bodyRotateY = smooth * -180.0f;     // Turn body toward machine
+    robot.shoulderRotateY = smooth * 20.0f;   // Adjust shoulder for reach
+    robot.shoulderRotateZ = -20.0f + smooth * 15.0f; // Lift arm up
+    robot.elbowAngle = -45.0f + smooth * 25.0f;      // Extend arm toward machine
+    robot.wristRotateZ = 30.0f + smooth * 60.0f;     // Orient cup upright
+    robot.wristRotateY = -90.0f;              // Keep gripper aligned
+}
+
+void updatePhasePourCoffee(float t) {
+    // Hold steady position under coffee spout
+    robot.wristRotateZ = 90.0f;   // Cup perfectly upright
+    robot.wristRotateY = -90.0f;  // Gripper properly aligned
+    
+    if (t >= 1.5f) {
+        robot.isCupFull = true;
+    }
+}
+
+void updatePhaseReturnCup(float t) {
+    float smooth = easeInOut(t);
+    float reverse = 1.0f - smooth;
+    
+    // Reverse the turn to machine movement
+    robot.bodyRotateY = reverse * -180.0f;
+    robot.shoulderRotateY = reverse * 20.0f;
+    robot.shoulderRotateZ = -20.0f + reverse * 15.0f;
+    robot.elbowAngle = -45.0f + reverse * 25.0f;
+    robot.wristRotateZ = 30.0f + reverse * 60.0f;
+    robot.wristRotateY = -90.0f;
+}
+
+void updatePhasePlaceCup(float t) {
+    float smooth = smoothStep(t);
+    
+    // Lower cup back to table
+    robot.shoulderRotateZ = -25.0f - smooth * 5.0f;  // Lower arm
+    robot.wristRotateZ = 30.0f;                      // Angle down to table
+    robot.wristRotateY = -90.0f + smooth * 90.0f;    // Rotate gripper back to normal
+    
+    // Release cup and open gripper
+    if (smooth > 0.6f) {
+        robot.cupInHand = false;
+        robot.cupX = 2.8f;
+        robot.cupY = TABLE_HEIGHT;
+        robot.cupZ = 0.0f;
+        
+        float openT = (smooth - 0.6f) / 0.4f;
+        robot.fingerAngle = 40.0f + openT * 50.0f;  // Open gripper
+    }
+}
+
+void updatePhaseRetract(float t) {
+    float smooth = easeInOut(t);
+    float reverse = 1.0f - smooth;
+    
+    // Return all joints to neutral position
+    robot.shoulderRotateZ = reverse * -30.0f;
+    robot.elbowAngle = reverse * -45.0f;
+    robot.wristRotateZ = reverse * 30.0f;
+    robot.wristRotateY = 0.0f;
+    robot.fingerAngle = 90.0f;  // Fully open
+}
+
+// Improved animation update function
 void updateAnimation() {
     if (!robot.isAnimating) return;
     
-    const float ANIMATION_SPEED = 0.015f; // Chậm lại để chuyển động mượt hơn
     robot.animationProgress += ANIMATION_SPEED;
     
     float t = robot.animationProgress;
     if (t > 1.0f) t = 1.0f;
-    // Sử dụng hàm smoothstep để chuyển động mượt hơn
-    float smoothT = t * t * (3.0f - 2.0f * t);
     
     switch (robot.currentPhase) {
-        case PHASE_REACH_CUP: {
-            // Tay vươn ra lấy cốc, đảm bảo không đi xuyên bàn
-            robot.shoulderRotateZ = smoothT * -30.0f;
-            robot.elbowAngle = smoothT * -30.0f;
-            robot.wristAngle = smoothT * 60.0f;
-            robot.fingerAngle = 90.0f; // Mở tay
-            
+        case PHASE_REACH_CUP:
+            updatePhaseReachCup(t);
             if (robot.animationProgress >= 1.0f) {
                 robot.animationProgress = 0.0f;
                 robot.currentPhase = PHASE_GRAB_CUP;
                 printf("Giai đoạn 2: Kẹp và nhấc cốc.\n");
             }
             break;
-        }
-        case PHASE_GRAB_CUP: {
-            // Kẹp và nhấc cốc
-            robot.fingerAngle = 90.0f - smoothT * 50.0f; // Kẹp lại
             
-            // Nhấc lên một chút
-            robot.shoulderRotateZ = -30.0f + smoothT * 5.0f; // (-30 -> -25)
-            robot.elbowAngle = -30.0f + smoothT * 5.0f;      // (-30 -> -25)
-            robot.wristAngle = 60.0f; // Giữ nguyên góc cổ tay
-
-            // Đánh dấu là cốc đã được cầm sau khi kẹp đủ chặt
-            if (smoothT > 0.5f) {
-                robot.cupInHand = true;
-            }
-
+        case PHASE_GRAB_CUP:
+            updatePhaseGrabCup(t);
             if (robot.animationProgress >= 1.0f) {
                 robot.currentPhase = PHASE_TURN_TO_MACHINE;
                 robot.animationProgress = 0.0f;
                 printf("Giai đoạn 3: Xoay người về phía máy pha cà phê.\n");
             }
             break;
-        }
-        case PHASE_TURN_TO_MACHINE: {
-            // Xoay người và tay về phía máy pha cafe
-            robot.bodyRotateY = smoothT * -170.0f;
             
-            // Điều chỉnh các góc để cánh tay vươn ra đúng vị trí máy pha cafe
-            // thay vì gập vào trong.
-            robot.shoulderRotateY = smoothT * 15.0f;         // Xoay vai để đưa tay về phía máy (tăng Z)
-            robot.shoulderRotateZ = -25.0f + smoothT * 5.0f;   // Nâng tay lên một chút (-25 -> -20)
-            robot.elbowAngle = 40.0f - smoothT * 55.0f;      // Duỗi thẳng khuỷu tay (-25 -> -80)
-            robot.wristAngle = 60.0f + smoothT * 40.0f;       // Giữ cốc thẳng đứng (60 -> 100)
-
+        case PHASE_TURN_TO_MACHINE:
+            updatePhaseTurnToMachine(t);
             if (robot.animationProgress >= 1.0f) {
                 robot.currentPhase = PHASE_POUR_COFFEE;
                 robot.animationProgress = 0.0f;
                 printf("Giai đoạn 4: Đặt cốc vào vòi và rót cà phê.\n");
             }
             break;
-        }
-        case PHASE_POUR_COFFEE: {
-            // Giữ cốc ổn định dưới vòi trong khi hiệu ứng rót cafe diễn ra.
-            // Các khớp khác giữ nguyên giá trị từ cuối giai đoạn 3.
-            // Cổ tay giữ ở góc 100 độ để cốc thẳng đứng.
-            robot.wristAngle = 100.0f;
-
-            if (robot.animationProgress >= 1.5f) { // Giữ lâu hơn để cafe "chảy"
-                robot.isCupFull = true; // Đánh dấu cốc đã đầy
+            
+        case PHASE_POUR_COFFEE:
+            updatePhasePourCoffee(t);
+            if (robot.animationProgress >= 1.5f) {
                 robot.animationProgress = 0.0f;
                 robot.currentPhase = PHASE_RETURN_CUP;
                 printf("Giai đoạn 5: Quay trở lại vị trí ban đầu.\n");
             }
             break;
-        }
-        case PHASE_RETURN_CUP: {
-            // Đảo ngược chuyển động xoay người và tay
-            float returnT = 1.0f - smoothT;
-            robot.bodyRotateY = returnT * -90.0f;
             
-            // Đảo ngược chuyển động của cánh tay từ vị trí máy pha cafe
-            robot.shoulderRotateY = returnT * 15.0f;
-            robot.shoulderRotateZ = -25.0f + returnT * 5.0f;
-            robot.elbowAngle = -25.0f - returnT * 55.0f;
-            robot.wristAngle = 60.0f + returnT * 40.0f;
-
+        case PHASE_RETURN_CUP:
+            updatePhaseReturnCup(t);
             if (robot.animationProgress >= 1.0f) {
                 robot.currentPhase = PHASE_PLACE_CUP;
                 robot.animationProgress = 0.0f;
                 printf("Giai đoạn 6: Đặt cốc xuống bàn.\n");
             }
             break;
-        }
-        case PHASE_PLACE_CUP: {
-            // Hạ cốc xuống bàn
-            float returnT = 1.0f - smoothT;
-            robot.shoulderRotateZ = -30.0f + returnT * 5.0f; // (-25 -> -30)
-            robot.elbowAngle = -30.0f + returnT * 5.0f;      // (-25 -> -30)
-            robot.wristAngle = 60.0f;
             
-            if (smoothT > 0.5f) {
-                if (robot.cupInHand) {
-                    robot.cupInHand = false;
-                    robot.cupX = 2.8f; // Cập nhật vị trí đặt cốc
-                    robot.cupY = 0.1f;
-                    robot.cupZ = 0.0f;
-                }
-                robot.fingerAngle = 40.0f + (smoothT - 0.5f) * 2.0f * 50.0f; // Mở tay
-            }
-
+        case PHASE_PLACE_CUP:
+            updatePhasePlaceCup(t);
             if (robot.animationProgress >= 1.0f) {
                 robot.currentPhase = PHASE_RETRACT;
                 robot.animationProgress = 0.0f;
                 printf("Giai đoạn 7: Rút tay về.\n");
             }
             break;
-        }
-        case PHASE_RETRACT: {
-            // Rút tay về vị trí ban đầu
-            float returnT = 1.0f - smoothT;
-            robot.shoulderRotateZ = returnT * -30.0f;
-            robot.elbowAngle = returnT * -30.0f;
-            robot.wristAngle = returnT * 60.0f;
-            robot.fingerAngle = 90.0f;
-
+            
+        case PHASE_RETRACT:
+            updatePhaseRetract(t);
             if (robot.animationProgress >= 1.0f) {
                 robot.currentPhase = PHASE_COMPLETE;
                 robot.isAnimating = false;
                 printf("=== HOÀN THÀNH! Cà phê của bạn đã sẵn sàng. ===\n");
             }
             break;
-        }
+            
         default:
             break;
     }
@@ -193,118 +271,116 @@ void drawRobotBody() {
     glutSolidCube(1.0f);
     glPopMatrix();
 
-    // Trụ xoay
+    // Trụ xoay - using resource manager
     glPushMatrix();
     glColor3f(0.5f, 0.5f, 0.6f);
-    GLUquadric* quad = gluNewQuadric();
+    GLUquadric* quad = GLResourceManager::getInstance().getCylinderQuadric();
     glRotatef(-90, 1, 0, 0);
     gluCylinder(quad, 0.5f, 0.5f, 1.0f, 20, 1);
-    gluDeleteQuadric(quad);
     glPopMatrix();
 
     // Thân trên (sẽ được vẽ trong hàm drawRobot để xoay)
 }
 
-// Vẽ cánh tay robot chi tiết
+// SIMPLIFIED robot arm with proper wrist control
 void drawRobotArm() {
     glPushMatrix();
-    // Di chuyển đến khớp vai, gắn trên thân trên
-    glTranslatef(0.0f, 1.0f, 0.0f); 
-    glRotatef(robot.shoulderRotateY, 0, 1, 0);
-    glRotatef(robot.shoulderRotateZ, 0, 0, 1);
     
-    // Khớp vai (hình cầu)
+    // Move to shoulder joint
+    glTranslatef(0.0f, 1.0f, 0.0f); 
+    glRotatef(robot.shoulderRotateY, 0, 1, 0);  // Horizontal swing
+    glRotatef(robot.shoulderRotateZ, 0, 0, 1);  // Up/down movement
+    
+    // Shoulder joint
     glColor3f(0.7f, 0.7f, 0.8f);
     glutSolidSphere(0.4f, 15, 15);
     
-    // Cánh tay trên (upper arm)
-    glTranslatef(0.8f, 0.0f, 0.0f); 
+    // Upper arm
+    glTranslatef(SHOULDER_LENGTH / 2.0f, 0.0f, 0.0f); 
     glPushMatrix();
-    glScalef(1.6f, 0.5f, 0.5f);
+    glScalef(SHOULDER_LENGTH, 0.5f, 0.5f);
     glColor3f(0.6f, 0.6f, 0.7f);
     glutSolidCube(1.0f);
     glPopMatrix();
     
-    // Khớp khuỷu tay
-    glTranslatef(0.8f, 0.0f, 0.0f); 
+    // Elbow joint
+    glTranslatef(SHOULDER_LENGTH / 2.0f, 0.0f, 0.0f); 
     glRotatef(robot.elbowAngle, 0, 0, 1);
     glColor3f(0.7f, 0.7f, 0.8f);
     glutSolidSphere(0.3f, 12, 12);
     
-    // Cánh tay dưới (forearm)
-    glTranslatef(0.7f, 0.0f, 0.0f); 
+    // Forearm
+    glTranslatef(FOREARM_LENGTH / 2.0f, 0.0f, 0.0f); 
     glPushMatrix();
-    glScalef(1.4f, 0.4f, 0.4f);
+    glScalef(FOREARM_LENGTH, 0.4f, 0.4f);
     glColor3f(0.6f, 0.6f, 0.7f);
     glutSolidCube(1.0f);
     glPopMatrix();
     
-    // Cổ tay
-    glTranslatef(0.7f, 0.0f, 0.0f); 
-    glRotatef(robot.wristAngle, 0, 0, 1);
+    // Wrist joint with TWO rotations for proper gripper alignment
+    glTranslatef(FOREARM_LENGTH / 2.0f, 0.0f, 0.0f); 
+    glRotatef(robot.wristRotateZ, 0, 0, 1);  // Bend up/down
+    glRotatef(robot.wristRotateY, 0, 1, 0);  // Twist left/right - KEY for cup grip!
+    
     glColor3f(0.7f, 0.7f, 0.8f);
     glutSolidSphere(0.2f, 10, 10);
 
-    // Bàn tay (gripper)
+    // Gripper hand
     glTranslatef(0.2f, 0.0f, 0.0f); 
     drawRobotHand();
     
     glPopMatrix();
 }
 
-// Vẽ bàn tay robot (gripper) chi tiết để cầm cốc tự nhiên hơn
+// SIMPLIFIED realistic gripper design
 void drawRobotHand() {
-    // Lòng bàn tay (phần đế của kẹp)
+    // Gripper base/palm
     glPushMatrix();
     glColor3f(0.4f, 0.4f, 0.5f);
-    glScalef(0.2f, 0.6f, 0.5f); // Làm lòng bàn tay rộng hơn
+    glScalef(0.3f, 0.4f, 0.3f);
     glutSolidCube(1.0);
     glPopMatrix();
     
-    // Vẽ các ngón tay cong để ôm cốc
+    // Gripper fingers - simple but effective
     glColor3f(0.5f, 0.5f, 0.6f);
     
-    // Ngón trên
+    // Upper finger
     glPushMatrix();
-    glTranslatef(0.1f, 0.25f, 0.0f); // Dịch lên trên
-    glRotatef(-robot.fingerAngle, 0, 0, 1); // Xoay ngón tay
+    glTranslatef(0.15f, 0.15f, 0.0f);
+    glRotatef(-robot.fingerAngle, 0, 0, 1);
     
-    // Đốt 1
-    glTranslatef(0.2f, 0.0f, 0.0f);
+    // Finger segment
+    glTranslatef(0.15f, 0.0f, 0.0f);
     glPushMatrix();
-    glScalef(0.4f, 0.1f, 0.4f);
+    glScalef(0.3f, 0.08f, 0.2f);
     glutSolidCube(1.0);
     glPopMatrix();
     
-    // Đốt 2 (cong vào)
-    glTranslatef(0.2f, 0.0f, 0.0f);
-    glRotatef(45.0f, 0, 0, 1);
-    glTranslatef(0.15f, -0.05f, 0.0f);
+    // Finger tip
+    glTranslatef(0.15f, 0.0f, 0.0f);
     glPushMatrix();
-    glScalef(0.3f, 0.1f, 0.4f);
+    glScalef(0.2f, 0.06f, 0.15f);
     glutSolidCube(1.0);
     glPopMatrix();
     
     glPopMatrix();
     
-    // Ngón dưới
+    // Lower finger
     glPushMatrix();
-    glTranslatef(0.1f, -0.25f, 0.0f); // Dịch xuống dưới
-    glRotatef(robot.fingerAngle, 0, 0, 1); // Xoay ngón tay
+    glTranslatef(0.15f, -0.15f, 0.0f);
+    glRotatef(robot.fingerAngle, 0, 0, 1);
     
-    // Đốt 1
-    glTranslatef(0.2f, 0.0f, 0.0f);
+    // Finger segment
+    glTranslatef(0.15f, 0.0f, 0.0f);
     glPushMatrix();
-    glScalef(0.4f, 0.1f, 0.4f);
+    glScalef(0.3f, 0.08f, 0.2f);
     glutSolidCube(1.0);
     glPopMatrix();
     
-    // Đốt 2 (cong vào)
-    glTranslatef(0.2f, 0.0f, 0.0f);
-    glRotatef(-45.0f, 0, 0, 1);
-    glTranslatef(0.15f, 0.05f, 0.0f);
+    // Finger tip
+    glTranslatef(0.15f, 0.0f, 0.0f);
     glPushMatrix();
-    glScalef(0.3f, 0.1f, 0.4f);
+    glScalef(0.2f, 0.06f, 0.15f);
     glutSolidCube(1.0);
     glPopMatrix();
     
@@ -321,17 +397,15 @@ void drawTable() {
     glPopMatrix();
 }
 
-// Vẽ máy pha cà phê chi tiết
+// Vẽ máy pha cà phê chi tiết - improved with resource manager
 void drawCoffeeMachine() {
     glPushMatrix();
-    // Đặt máy trên mặt bàn (Y=0.1) và dịch ra xa
-    // Thân máy cao 2.2, nên tâm Y của nó phải là 0.1 + 2.2/2 = 1.2
-    glTranslatef(-4.0f, 1.2f, 0.0f);
+    // Đặt máy trên mặt bàn và dịch ra xa
+    glTranslatef(-4.0f, TABLE_HEIGHT + 1.1f, 0.0f);
 
     // Thân máy chính (vỏ kim loại)
     glColor3f(0.6f, 0.6f, 0.65f);
     glPushMatrix();
-    glTranslatef(0.0f, 1.1f, 0.0f); // Dịch lên để đáy chạm mặt bàn (cao 2.2/2 = 1.1)
     glScalef(1.5f, 2.2f, 1.4f);
     glutSolidCube(1.0f);
     glPopMatrix();
@@ -344,20 +418,19 @@ void drawCoffeeMachine() {
     glutSolidCube(1.0f);
     glPopMatrix();
 
-    // Vòi rót (từ group head)
+    // Vòi rót (từ group head) - using resource manager
     glColor3f(0.3f, 0.3f, 0.3f);
     glPushMatrix();
-    glTranslatef(0.0f, -0.2f, 0.8f); // Dịch vòi xuống thấp hơn
-    GLUquadric* quad = gluNewQuadric();
+    glTranslatef(0.0f, -0.2f, 0.8f);
+    GLUquadric* quad = GLResourceManager::getInstance().getCylinderQuadric();
     glRotatef(90, 1, 0, 0);
     gluCylinder(quad, 0.1f, 0.05f, 0.5f, 10, 1);
-    gluDeleteQuadric(quad);
     glPopMatrix();
 
     // Tay cầm pha chế (portafilter handle)
     glColor3f(0.1f, 0.1f, 0.1f);
     glPushMatrix();
-    glTranslatef(0.0f, 0.35f, 1.4f); // Hạ tay cầm xuống
+    glTranslatef(0.0f, 0.35f, 1.4f);
     glScalef(0.15f, 0.15f, 1.2f);
     glutSolidCube(1.0f);
     glPopMatrix();
@@ -373,16 +446,19 @@ void drawCoffeeMachine() {
     glutSolidSphere(0.1f, 8, 8);
     glPopMatrix();
 
-    // Đồng hồ áp suất
+    // Đồng hồ áp suất - using resource manager
     glPushMatrix();
     glTranslatef(0.0f, 1.4f, 0.75f);
+    GLUquadric* diskQuad = GLResourceManager::getInstance().getDiskQuadric();
+    
     // Mặt đồng hồ
     glColor3f(1.0f, 1.0f, 1.0f);
-    GLUquadric* diskQuad = gluNewQuadric();
     gluDisk(diskQuad, 0.0f, 0.25f, 20, 1);
+    
     // Viền đồng hồ
     glColor3f(0.3f, 0.3f, 0.3f);
     gluCylinder(diskQuad, 0.25f, 0.25f, 0.05f, 20, 1);
+    
     // Kim đồng hồ
     glColor3f(1.0f, 0.0f, 0.0f);
     glLineWidth(2.0);
@@ -390,74 +466,71 @@ void drawCoffeeMachine() {
     glVertex3f(0.0f, 0.0f, 0.06f);
     glVertex3f(0.15f, 0.1f, 0.06f);
     glEnd();
-    gluDeleteQuadric(diskQuad);
     glPopMatrix();
 
     glPopMatrix(); 
 }
 
-// Vẽ cốc chi tiết
+// SIMPLIFIED cup drawing with proper gripper alignment
 void drawCup() {
     glPushMatrix();
     
     if (robot.cupInHand) {
-        // Tính toán vị trí cốc dựa trên chuỗi transform của cánh tay robot
-        // để đảm bảo cốc luôn nằm chính xác trong tay gắp.
-        glTranslatef(0.0f, 1.1f, 0.0f);
+        // Follow the exact same transformation chain as the gripper
+        glTranslatef(0.0f, ROBOT_BASE_HEIGHT, 0.0f);
         glRotatef(robot.bodyRotateY, 0, 1, 0);
         
         glTranslatef(0.0f, 1.0f, 0.0f);
         glRotatef(robot.shoulderRotateY, 0, 1, 0);
         glRotatef(robot.shoulderRotateZ, 0, 0, 1);
         
-        glTranslatef(1.6f, 0.0f, 0.0f); // Chiều dài cánh tay trên
+        glTranslatef(SHOULDER_LENGTH, 0.0f, 0.0f);
         glRotatef(robot.elbowAngle, 0, 0, 1);
         
-        glTranslatef(1.4f, 0.0f, 0.0f); // Chiều dài cánh tay dưới
-        glRotatef(robot.wristAngle, 0, 0, 1);
+        glTranslatef(FOREARM_LENGTH, 0.0f, 0.0f);
+        glRotatef(robot.wristRotateZ, 0, 0, 1);  // Match wrist Z rotation
+        glRotatef(robot.wristRotateY, 0, 1, 0);  // Match wrist Y rotation - CRITICAL!
         
-        // Vị trí cốc trong kẹp gắp (so với cổ tay)
-        glTranslatef(0.4f, 0.0f, 0.0f); // Dịch ra giữa các ngón tay
+        // Position cup in gripper - offset to center between fingers
+        glTranslatef(HAND_OFFSET + 0.1f, 0.0f, 0.0f);
 
     } else {
-        // Cốc trên bàn
+        // Cup on table
         glTranslatef(robot.cupX, robot.cupY, robot.cupZ);
     }
     
-    // Vẽ thân cốc (trụ)
+    // Draw cup body (cylinder)
     glColor3f(1.0f, 1.0f, 1.0f); 
-    glRotatef(-90.0f, 1.0f, 0.0f, 0.0f); 
-    GLUquadric* quad = gluNewQuadric();
-    gluCylinder(quad, 0.25f, 0.25f, 0.5f, 20, 1); 
+    glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);  // Orient cup upright
+    GLUquadric* quad = GLResourceManager::getInstance().getCylinderQuadric();
+    gluCylinder(quad, CUP_RADIUS, CUP_RADIUS, CUP_HEIGHT, 20, 1); 
     
-    // Vẽ đáy cốc
-    gluDisk(quad, 0.0f, 0.25f, 20, 1); 
+    // Draw cup bottom
+    GLUquadric* diskQuad = GLResourceManager::getInstance().getDiskQuadric();
+    gluDisk(diskQuad, 0.0f, CUP_RADIUS, 20, 1); 
 
-    // Vẽ cà phê nếu cốc đầy
+    // Draw coffee if cup is full
     if (robot.isCupFull) {
-        glColor3f(0.4f, 0.2f, 0.1f); // Màu cà phê
-        // Vẽ một cái đĩa gần miệng cốc
+        glColor3f(0.4f, 0.2f, 0.1f);
         glPushMatrix();
-        glTranslatef(0.0f, 0.0f, 0.4f); // Nâng lên gần miệng cốc (chiều cao cốc là 0.5)
-        gluDisk(quad, 0.0f, 0.23f, 20, 1); // Bán kính nhỏ hơn một chút
+        glTranslatef(0.0f, 0.0f, CUP_HEIGHT * 0.8f);
+        gluDisk(diskQuad, 0.0f, CUP_RADIUS * 0.92f, 20, 1);
         glPopMatrix();
     }
 
-    // Vẽ tay cầm
+    // Draw cup handle
     glPushMatrix();
-    glTranslatef(0.25f, 0.0f, 0.25f); 
+    glTranslatef(CUP_RADIUS, 0.0f, CUP_HEIGHT * 0.5f); 
     glutSolidTorus(0.04f, 0.15f, 8, 16);
     glPopMatrix();
-    
-    gluDeleteQuadric(quad);
     
     glPopMatrix();
 }
 
-// Vẽ toàn bộ robot
+// Vẽ toàn bộ robot - improved with constants
 void drawRobot() {
     glPushMatrix();
-    glTranslatef(0.0f, 1.1f, 0.0f);  // Đặt robot trên mặt đất (Y=0.1 là mặt bàn)
+    glTranslatef(0.0f, ROBOT_BASE_HEIGHT, 0.0f);
     
     // Phần đế và thân dưới (cố định)
     drawRobotBody();
