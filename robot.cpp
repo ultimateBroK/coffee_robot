@@ -79,9 +79,7 @@ void updateRobot() {
             robot.fingers = 90.0f;         // Giữ gripper mở
             
             if (robot.progress >= 1.0f) {
-                robot.phase = GRAB_CUP;
-                robot.progress = 0.0f;
-                printf("📋 Dang nam coc...\n");
+                advancePhase(GRAB_CUP, "📋 Dang nam coc...");
             }
             break;
             
@@ -106,9 +104,7 @@ void updateRobot() {
             }
             
             if (robot.progress >= 1.0f) {
-                robot.phase = TURN_TO_MACHINE;
-                robot.progress = 0.0f;
-                printf("🔄 Dang xoay ve phia may pha ca phe...\n");
+                advancePhase(TURN_TO_MACHINE, "🔄 Dang xoay ve phia may pha ca phe...");
             }
             break;
             
@@ -122,9 +118,7 @@ void updateRobot() {
             robot.wristY = -90.0f;               // Giữ gripper thẳng
             
             if (robot.progress >= 1.0f) {
-                robot.phase = POUR_COFFEE;
-                robot.progress = 0.0f;
-                printf("☕ Dang rot ca phe...\n");
+                advancePhase(POUR_COFFEE, "☕ Dang rot ca phe...");
             }
             break;
             
@@ -135,9 +129,7 @@ void updateRobot() {
             
             if (robot.progress >= 1.5f) {  // Đợi lâu hơn để pha cà phê
                 robot.cupHasCoffee = true;
-                robot.phase = RETURN_CUP;
-                robot.progress = 0.0f;
-                printf("↩️ Dang quay ve ban...\n");
+                advancePhase(RETURN_CUP, "↩️ Dang quay ve ban...");
             }
             break;
             
@@ -152,9 +144,7 @@ void updateRobot() {
             robot.wristY = -90.0f;                     // Giữ gripper thẳng
             
             if (robot.progress >= 1.0f) {
-                robot.phase = PLACE_CUP;
-                robot.progress = 0.0f;
-                printf("📍 Dang dat coc xuong...\n");
+                advancePhase(PLACE_CUP, "📍 Dang dat coc xuong...");
             }
             break;
         }
@@ -173,9 +163,7 @@ void updateRobot() {
             }
             
             if (robot.progress >= 1.0f) {
-                robot.phase = GO_HOME;
-                robot.progress = 0.0f;
-                printf("🏠 Dang ve vi tri ban dau...\n");
+                advancePhase(GO_HOME, "🏠 Dang ve vi tri ban dau...");
             }
             break;
             
@@ -205,6 +193,13 @@ void updateRobot() {
         default:
             break;
     }
+}
+
+// Hàm tiện ích để chuyển pha animation, giảm mã lặp
+void advancePhase(RobotPhase newPhase, const char* message) {
+    robot.phase = newPhase;
+    robot.progress = 0.0f;
+    printf("%s\n", message);
 }
 
 //=============================================================================
@@ -362,18 +357,25 @@ void drawCup() {
     glPushMatrix();
     
     if (robot.holdingCup) {
-        // Cốc theo chính xác vị trí gripper
+        // Tận dụng lại các phép biến đổi từ drawRobotArm để tối ưu hóa
+        // Di chuyển đến vị trí gripper (dùng ít phép biến đổi hơn)
         glTranslatef(0, 1.1f, 0);                    // Nâng lên độ cao robot
         glRotatef(robot.body, 0, 1, 0);              // Xoay theo thân robot
-        glTranslatef(0, 1, 0);                       // Di chuyển đến vai
-        glRotatef(robot.shoulderY, 0, 1, 0);         // Xoay vai ngang
-        glRotatef(robot.shoulderZ, 0, 0, 1);         // Xoay vai dọc
-        glTranslatef(ARM_UPPER, 0, 0);               // Di chuyển đến khuỷu tay
-        glRotatef(robot.elbow, 0, 0, 1);             // Gập khuỷu tay
-        glTranslatef(ARM_LOWER, 0, 0);               // Di chuyển đến cổ tay
-        glRotatef(robot.wristZ, 0, 0, 1);            // Gập cổ tay
-        glRotatef(robot.wristY, 0, 1, 0);            // Xoay cổ tay
-        glTranslatef(0.4f, 0, 0);                    // Vị trí trong gripper (gần hơn)
+        
+        // Đến vị trí vai
+        glTranslatef(0, 1, 0);                      
+        glRotatef(robot.shoulderY, 0, 1, 0);        
+        glRotatef(robot.shoulderZ, 0, 0, 1);         
+        
+        // Cánh tay trên đến khuỷu tay
+        glTranslatef(ARM_UPPER, 0, 0);               
+        glRotatef(robot.elbow, 0, 0, 1);             
+        
+        // Cánh tay dưới đến cổ tay
+        glTranslatef(ARM_LOWER, 0, 0);               
+        glRotatef(robot.wristZ, 0, 0, 1);            
+        glRotatef(robot.wristY, 0, 1, 0);            
+        glTranslatef(0.4f, 0, 0);                    // Vị trí trong gripper
     } else {
         // Cốc đặt trên bàn
         glTranslatef(robot.cupX, robot.cupY, robot.cupZ);

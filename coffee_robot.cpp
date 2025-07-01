@@ -35,6 +35,22 @@ void initGL() {
     initRobot();
 }
 
+// Hàm tiện ích để lấy text trạng thái robot
+const char* getStatusText() {
+    switch (robot.phase) {
+        case IDLE: return "NGHI - Nhan SPACE de bat dau pha ca phe";
+        case REACH_CUP: return "Dang duoi tay toi coc...";
+        case GRAB_CUP: return "Dang cam lay coc...";
+        case TURN_TO_MACHINE: return "Dang xoay ve phia may pha ca phe...";
+        case POUR_COFFEE: return "Dang rot ca phe...";
+        case RETURN_CUP: return "Dang mang coc ve ban...";
+        case PLACE_CUP: return "Dang dat coc xuong...";
+        case GO_HOME: return "Dang ve vi tri ban dau...";
+        case FINISHED: return "HOAN THANH - Nhan R de reset, SPACE de pha them";
+        default: return "Trang thai khong xac dinh";
+    }
+}
+
 //=============================================================================
 // HÀM VẼ CHÍNH - Render toàn bộ scene 3D
 //=============================================================================
@@ -71,20 +87,9 @@ void display() {
     glColor3f(1.0f, 1.0f, 0.0f);        // Màu vàng cho text
     glRasterPos3f(-3.8f, 4.2f, 0.0f);   // Vị trí bắt đầu vẽ text
     
-    const char* statusText[] = {
-        "NGHI - Nhan SPACE de bat dau pha ca phe",
-        "Dang duoi tay toi coc...",
-        "Dang cam lay coc...", 
-        "Dang xoay ve phia may pha ca phe...",
-        "Dang rot ca phe...",
-        "Dang mang coc ve ban...",
-        "Dang dat coc xuong...",
-        "Dang ve vi tri ban dau...",
-        "HOAN THANH - Nhan R de reset, SPACE de pha them"
-    };
-    
-    const char* currentText = statusText[robot.phase];   // Lấy text tương ứng với pha hiện tại
-    for (int i = 0; currentText[i] != '\0'; i++) {      // Vẽ từng ký tự
+    // Sử dụng trạng thái từ robot.cpp thay vì định nghĩa trùng lặp
+    const char* currentText = getStatusText();
+    for (int i = 0; currentText[i] != '\0'; i++) {
         glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, currentText[i]);
     }
     

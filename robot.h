@@ -63,6 +63,9 @@ void resetRobot();              // Reset về trạng thái ban đầu
 void drawRobot();               // Vẽ robot
 void drawScene();               // Vẽ bàn, máy pha cà phê, v.v.
 
+// Hàm tiện ích
+void advancePhase(RobotPhase newPhase, const char* message);  // Chuyển pha animation
+
 //=============================================================================
 // ROBOT TOÀN CỤC - Robot duy nhất trong scene của chúng ta
 //=============================================================================
