@@ -4,9 +4,9 @@
 //=============================================================================
 // BIẾN TOÀN CỤC - Camera và điều khiển chuột
 //=============================================================================
-float cameraAngleX = -25.0f;  // Góc nhìn từ trên xuống (âm để nhìn xuống)
-float cameraAngleY = 45.0f;   // Góc nhìn chéo 
-float cameraDistance = 15.0f; // Khoảng cách camera đến robot
+float cameraAngleX = 0.0f;    // Góc nhìn mặt ngang (0 = nhìn thẳng)
+float cameraAngleY = 0.0f;    // Góc nhìn thẳng phía trước
+float cameraDistance = 15.0f; // Khoảng cách xa hơn để nhìn toàn bộ bối cảnh
 bool mousePressed = false;     // Trạng thái chuột có đang được nhấn
 int lastMouseX, lastMouseY;    // Vị trí chuột lần cuối
 
@@ -72,15 +72,15 @@ void display() {
     glRasterPos3f(-3.8f, 4.2f, 0.0f);   // Vị trí bắt đầu vẽ text
     
     const char* statusText[] = {
-        "NGHỈ - Nhấn SPACE để bắt đầu pha cà phê",
-        "Đang duỗi tay tới cốc...",
-        "Đang cầm lấy cốc...", 
-        "Đang xoay về phía máy pha cà phê...",
-        "Đang rót cà phê...",
-        "Đang mang cốc về bàn...",
-        "Đang đặt cốc xuống...",
-        "Đang về vị trí ban đầu...",
-        "HOÀN THÀNH - Nhấn R để reset, SPACE để pha thêm"
+        "NGHI - Nhan SPACE de bat dau pha ca phe",
+        "Dang duoi tay toi coc...",
+        "Dang cam lay coc...", 
+        "Dang xoay ve phia may pha ca phe...",
+        "Dang rot ca phe...",
+        "Dang mang coc ve ban...",
+        "Dang dat coc xuong...",
+        "Dang ve vi tri ban dau...",
+        "HOAN THANH - Nhan R de reset, SPACE de pha them"
     };
     
     const char* currentText = statusText[robot.phase];   // Lấy text tương ứng với pha hiện tại
@@ -102,20 +102,20 @@ void keyboard(unsigned char key, int x, int y) {
         case ' ': // Phím Space - bắt đầu quy trình pha cà phê
             if (!robot.moving) {
                 startCoffeeSequence();
-                std::cout << "🤖 Bắt đầu quy trình pha cà phê..." << std::endl;
+                std::cout << "🤖 Bat dau quy trinh pha ca phe..." << std::endl;
             } else {
-                std::cout << "⚠️  Robot đang bận. Nhấn R để reset." << std::endl;
+                std::cout << "⚠️  Robot dang ban. Nhan R de reset." << std::endl;
             }
             break;
             
         case 'r':
         case 'R': // Phím R - reset robot về vị trí ban đầu
             resetRobot();
-            std::cout << "🔄 Robot đã được reset về vị trí ban đầu." << std::endl;
+            std::cout << "🔄 Robot da duoc reset ve vi tri ban dau." << std::endl;
             break;
             
         case 27: // Phím ESC - thoát chương trình
-            std::cout << "👋 Tạm biệt!" << std::endl;
+            std::cout << "👋 Tam biet!" << std::endl;
             exit(0);
             break;
     }
@@ -204,21 +204,21 @@ void reshape(int width, int height) {
 // HIỂN THỊ HƯỚNG DẪN - In ra console các phím điều khiển
 //=============================================================================
 void printInstructions() {
-    std::cout << "\n=== DEMO ROBOT PHA CÀ PHÊ ===" << std::endl;
-    std::cout << "Điều khiển:" << std::endl;
-    std::cout << "  SPACE  - Bắt đầu animation pha cà phê" << std::endl;
-    std::cout << "  R      - Reset robot về vị trí ban đầu" << std::endl;
-    std::cout << "  ESC    - Thoát chương trình" << std::endl;
-    std::cout << "  Chuột  - Kéo chuột trái để xoay camera" << std::endl;
-    std::cout << "  MŨI TÊN- Lên/Xuống để zoom in/out" << std::endl;
-    std::cout << "\nCác pha hoạt động:" << std::endl;
-    std::cout << "  1. Duỗi tay tới cốc" << std::endl;
-    std::cout << "  2. Cầm lấy cốc" << std::endl;
-    std::cout << "  3. Xoay về máy pha cà phê" << std::endl;
-    std::cout << "  4. Rót cà phê" << std::endl;
-    std::cout << "  5. Mang cốc về bàn" << std::endl;
-    std::cout << "  6. Đặt cốc xuống" << std::endl;
-    std::cout << "  7. Thu cánh tay về" << std::endl;
+    std::cout << "\n=== DEMO ROBOT PHA CA PHE ===" << std::endl;
+    std::cout << "Dieu khien:" << std::endl;
+    std::cout << "  SPACE  - Bat dau animation pha ca phe" << std::endl;
+    std::cout << "  R      - Reset robot ve vi tri ban dau" << std::endl;
+    std::cout << "  ESC    - Thoat chuong trinh" << std::endl;
+    std::cout << "  Chuot  - Keo chuot trai de xoay camera" << std::endl;
+    std::cout << "  MUI TEN- Len/Xuong de zoom in/out" << std::endl;
+    std::cout << "\nCac pha hoat dong:" << std::endl;
+    std::cout << "  1. Duoi tay toi coc" << std::endl;
+    std::cout << "  2. Cam lay coc" << std::endl;
+    std::cout << "  3. Xoay ve may pha ca phe" << std::endl;
+    std::cout << "  4. Rot ca phe" << std::endl;
+    std::cout << "  5. Mang coc ve ban" << std::endl;
+    std::cout << "  6. Dat coc xuong" << std::endl;
+    std::cout << "  7. Thu canh tay ve" << std::endl;
     std::cout << "================================\n" << std::endl;
 }
 
@@ -226,7 +226,7 @@ void printInstructions() {
 // HÀM DỌN DẸP - Được gọi khi thoát chương trình
 //=============================================================================
 void cleanup() {
-    std::cout << "🧹 Dọn dẹp hoàn thành." << std::endl;
+    std::cout << "🧹 Don dep hoan thanh." << std::endl;
 }
 
 //=============================================================================
@@ -243,9 +243,9 @@ int main(int argc, char** argv) {
     glutInitWindowPosition(100, 100);                         // Vị trí cửa sổ trên màn hình
     
     // Tạo cửa sổ OpenGL
-    int window = glutCreateWindow("Demo Robot Pha Cà Phê - Animation 3D OpenGL [CẢI TIẾN]");
+    int window = glutCreateWindow("Demo Robot Pha Ca Phe");
     if (window == 0) {
-        std::cerr << "❌ Không thể tạo cửa sổ OpenGL!" << std::endl;
+        std::cerr << "❌ Khong the tao cua so OpenGL!" << std::endl;
         return -1;
     }
     
@@ -256,7 +256,7 @@ int main(int argc, char** argv) {
     try {
         initGL();
     } catch (const std::exception& e) {
-        std::cerr << "❌ Lỗi khởi tạo OpenGL: " << e.what() << std::endl;
+        std::cerr << "❌ Loi khoi tao OpenGL: " << e.what() << std::endl;
         return -1;
     }
     
@@ -269,7 +269,7 @@ int main(int argc, char** argv) {
     glutMotionFunc(mouseMotion);       // Hàm xử lý di chuyển chuột
     glutTimerFunc(16, timer, 0);       // Hàm timer cho animation
     
-    std::cout << "✅ OpenGL khởi tạo thành công. Bắt đầu vòng lặp chính..." << std::endl;
+    std::cout << "✅ OpenGL khoi tao thanh cong. Bat dau vong lap chinh..." << std::endl;
     
     // Bắt đầu vòng lặp chính của GLUT
     glutMainLoop();

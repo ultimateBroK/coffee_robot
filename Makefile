@@ -10,7 +10,7 @@ LIBS = -lGL -lGLU -lglut -lm
 TARGET = coffee_robot
 
 # Source files - using simplified version
-SOURCES = coffee_robot.cpp robot_simple.cpp
+SOURCES = coffee_robot.cpp robot.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
 
 # Thêm cờ debug nếu biến DEBUG=1 được truyền vào
