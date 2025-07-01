@@ -33,7 +33,7 @@ void initRobot() {
     
     // Cốc bắt đầu trên bàn (vị trí gần robot hơn để dễ nắm)
     robot.cupX = 2.2f;  // Gần robot hơn để dễ với tới
-    robot.cupY = TABLE_Y + 0.25f;  // Đặt trên mặt bàn
+    robot.cupY = TABLE_Y + 0.0f;  // Đặt trên mặt bàn
     robot.cupZ = 0.0f;
     robot.holdingCup = false;
     robot.cupHasCoffee = false;
@@ -71,12 +71,12 @@ void updateRobot() {
     // Cập nhật robot dựa trên giai đoạn hiện tại
     switch (robot.phase) {
         case REACH_CUP:
-            // Di chuyển cánh tay về phía cốc
-            robot.shoulderZ = s * -30.0f;  // Hạ vai xuống nhiều hơn
-            robot.elbow = s * -50.0f;      // Gập khuỷu tay nhiều hơn
-            robot.wristZ = s * 40.0f;      // Nâng cổ tay lên
-            robot.shoulderY = s * 10.0f;   // Xoay vai một chút để hướng về cốc
-            robot.fingers = 90.0f;         // Giữ gripper mở
+            // Di chuyển cánh tay về phía cốc - chuyển động mượt mà hơn
+            robot.shoulderZ = s * -25.0f;  // Hạ vai xuống với biên độ lớn hơn
+            robot.elbow = s * -45.0f;      // Gập khuỷu tay với góc tự nhiên hơn
+            robot.wristZ = s * 45.0f;      // Nâng cổ tay lên cao hơn để tiếp cận tốt
+            robot.shoulderY = s * 12.0f;   // Xoay vai mượt mà để hướng chính xác về cốc
+            robot.fingers = 90.0f - s * 5.0f; // Bắt đầu chuẩn bị gripper từ từ
             
             if (robot.progress >= 1.0f) {
                 advancePhase(GRAB_CUP, "📋 Dang nam coc...");
@@ -84,23 +84,25 @@ void updateRobot() {
             break;
             
         case GRAB_CUP:
-            // Xoay gripper và đóng ngón tay để nắm cốc
+            // Xoay gripper và đóng ngón tay để nắm cốc - chuyển động đồng bộ hơn
             robot.wristY = s * -90.0f;  // Xoay để thẳng hàng với cốc
             
-            // Đóng gripper từ từ để nắm chặt cốc
-            if (s < 0.5f) {
-                // 50% đầu: chỉ xoay gripper
-                robot.fingers = 90.0f;
+            // Đóng gripper từ từ để nắm chặt cốc - chuyển động mượt mà hơn
+            if (s < 0.4f) {
+                // 40% đầu: chỉ xoay gripper và chuẩn bị
+                robot.fingers = 85.0f - s * 10.0f; // Giảm dần độ mở
             } else {
-                // 50% sau: đóng gripper để nắm cốc
-                float gripProgress = (s - 0.5f) / 0.5f;
-                robot.fingers = 90.0f - gripProgress * 60.0f;  // Đóng chặt hơn
+                // 60% sau: đóng gripper để nắm cốc với tốc độ thích hợp
+                float gripProgress = (s - 0.4f) / 0.6f;
+                robot.fingers = 81.0f - gripProgress * 55.0f;  // Đóng chặt hơn, mượt hơn
             }
             
-            if (s > 0.7f) {
+            if (s > 0.6f) {
                 robot.holdingCup = true;  // Bắt đầu cầm cốc
-                // Nhấc cốc lên một chút để rời khỏi bàn
-                robot.shoulderZ = -30.0f + (s - 0.7f) / 0.3f * 8.0f;
+                // Nhấc cốc lên một chút để rời khỏi bàn - chuyển động mượt mà hơn
+                float liftProgress = (s - 0.6f) / 0.4f;
+                robot.shoulderZ = -25.0f + liftProgress * 10.0f; // Nhấc vai lên mượt mà
+                robot.elbow = -45.0f + liftProgress * 5.0f;      // Điều chỉnh khuỷu tay nhẹ nhàng
             }
             
             if (robot.progress >= 1.0f) {
@@ -109,13 +111,13 @@ void updateRobot() {
             break;
             
         case TURN_TO_MACHINE:
-            // Xoay thân và định vị cánh tay về phía máy pha cà phê
-            robot.body = s * -180.0f;           // Xoay thân 180 độ
-            robot.shoulderY = 10.0f + s * 15.0f; // Điều chỉnh vai ngang
-            robot.shoulderZ = -22.0f + s * 17.0f; // Nâng vai lên
-            robot.elbow = -50.0f + s * 30.0f;    // Duỗi khuỷu tay
-            robot.wristZ = 40.0f + s * 50.0f;    // Nâng cổ tay lên cao
-            robot.wristY = -90.0f;               // Giữ gripper thẳng
+            // Xoay thân và định vị cánh tay về phía máy pha cà phê - chuyển động đồng bộ
+            robot.body = s * -180.0f;                // Xoay thân 180 độ mượt mà
+            robot.shoulderY = 12.0f + s * 18.0f;     // Điều chỉnh vai ngang với biên độ lớn hơn
+            robot.shoulderZ = -15.0f + s * 10.0f;    // Nâng vai lên với quỹ đạo mượt mà
+            robot.elbow = -40.0f + s * 25.0f;        // Duỗi khuỷu tay tự nhiên hơn
+            robot.wristZ = 45.0f + s * 10.0f;        // Nâng cổ tay lên cao đồng bộ với vai
+            robot.wristY = -90.0f + s * 5.0f;        // Điều chỉnh nhẹ gripper trong quá trình xoay
             
             if (robot.progress >= 1.0f) {
                 advancePhase(POUR_COFFEE, "☕ Dang rot ca phe...");
@@ -123,9 +125,9 @@ void updateRobot() {
             break;
             
         case POUR_COFFEE:
-            // Giữ cốc ổn định dưới vòi pha cà phê
-            robot.wristZ = 90.0f;   // Cốc thẳng đứng
-            robot.wristY = -90.0f;  // Gripper hướng đúng
+            // Giữ cốc ổn định dưới vòi pha cà phê - thêm chuyển động nhỏ để tự nhiên
+            robot.wristZ = 55.0f;   // Điều chỉnh cốc từ từ đến vị trí hoàn hảo
+            robot.wristY = -85.0f - s * 5.0f;   // Tinh chỉnh gripper để đặt cốc chính xác
             
             if (robot.progress >= 1.5f) {  // Đợi lâu hơn để pha cà phê
                 robot.cupHasCoffee = true;
@@ -134,14 +136,14 @@ void updateRobot() {
             break;
             
         case RETURN_CUP: {
-            // Đảo ngược chuyển động để quay về bàn
+            // Đảo ngược chuyển động để quay về bàn - chuyển động mượt mà hơn
             float reverse = 1.0f - s;
-            robot.body = reverse * -180.0f;           // Xoay thân về vị trí ban đầu
-            robot.shoulderY = 10.0f + reverse * 15.0f; // Điều chỉnh vai ngang
-            robot.shoulderZ = -22.0f + reverse * 17.0f; // Hạ vai xuống
-            robot.elbow = -50.0f + reverse * 30.0f;    // Gập khuỷu tay lại
-            robot.wristZ = 40.0f + reverse * 50.0f;    // Hạ cổ tay xuống
-            robot.wristY = -90.0f;                     // Giữ gripper thẳng
+            robot.body = reverse * -180.0f;              // Xoay thân về vị trí ban đầu
+            robot.shoulderY = 12.0f + reverse * 18.0f;   // Điều chỉnh vai ngang mượt mà
+            robot.shoulderZ = -15.0f + reverse * 10.0f;  // Hạ vai xuống tự nhiên
+            robot.elbow = -40.0f + reverse * 25.0f;      // Gập khuỷu tay lại đồng bộ
+            robot.wristZ = 45.0f + reverse * 10.0f;      // Hạ cổ tay xuống mượt mà
+            robot.wristY = -90.0f + reverse * 5.0f;      // Điều chỉnh gripper nhẹ nhàng
             
             if (robot.progress >= 1.0f) {
                 advancePhase(PLACE_CUP, "📍 Dang dat coc xuong...");
@@ -150,16 +152,18 @@ void updateRobot() {
         }
             
         case PLACE_CUP:
-            // Hạ cốc xuống và thả ra
-            robot.shoulderZ = -30.0f - s * 8.0f;  // Hạ vai xuống để đặt cốc
-            robot.wristZ = 40.0f - s * 10.0f;     // Hạ cổ tay xuống
-            robot.wristY = -90.0f + s * 90.0f;    // Xoay gripper về vị trí ban đầu
+            // Hạ cốc xuống và thả ra - chuyển động đồng bộ và tự nhiên hơn
+            robot.shoulderZ = -25.0f - s * 10.0f;    // Hạ vai xuống để đặt cốc mượt mà
+            robot.elbow = -40.0f - s * 5.0f;         // Điều chỉnh khuỷu tay nhẹ nhàng
+            robot.wristZ = 45.0f - s * 15.0f;        // Hạ cổ tay xuống đồng bộ
+            robot.wristY = -90.0f + s * 90.0f;       // Xoay gripper về vị trí ban đầu
             
-            if (s > 0.6f) {
+            if (s > 0.5f) {
                 robot.holdingCup = false;  // Thả cốc ra
-                // Mở gripper từ từ
-                float releaseProgress = (s - 0.6f) / 0.4f;
-                robot.fingers = 30.0f + releaseProgress * 60.0f;  // Mở gripper
+                // Mở gripper từ từ với chuyển động mượt mà hơn
+                float releaseProgress = (s - 0.5f) / 0.5f;
+                float easeRelease = smooth(releaseProgress); // Áp dụng hàm smooth cho chuyển động mở
+                robot.fingers = 30.0f + easeRelease * 60.0f;  // Mở gripper mượt mà
             }
             
             if (robot.progress >= 1.0f) {
@@ -168,14 +172,16 @@ void updateRobot() {
             break;
             
         case GO_HOME: {
-            // Đưa tất cả khớp về vị trí trung tính
+            // Đưa tất cả khớp về vị trí trung tính - chuyển động mượt mà hơn
             float reverse2 = 1.0f - s;
-            robot.shoulderY = reverse2 * 10.0f;   // Đưa vai về giữa
-            robot.shoulderZ = reverse2 * -38.0f;  // Đưa vai về vị trí ban đầu
-            robot.elbow = reverse2 * -50.0f;      // Duỗi khuỷu tay
-            robot.wristZ = reverse2 * 30.0f;      // Đưa cổ tay về vị trí ban đầu
-            robot.wristY = 0.0f;                  // Gripper thẳng
-            robot.fingers = 90.0f;                // Gripper mở
+            float easeReverse = smooth(reverse2); // Áp dụng hàm smooth cho chuyển động về
+            
+            robot.shoulderY = easeReverse * 12.0f;    // Đưa vai về giữa mượt mà
+            robot.shoulderZ = easeReverse * -35.0f;   // Đưa vai về vị trí ban đầu tự nhiên
+            robot.elbow = easeReverse * -45.0f;       // Duỗi khuỷu tay mượt mà
+            robot.wristZ = easeReverse * 30.0f;       // Đưa cổ tay về vị trí ban đầu
+            robot.wristY = easeReverse * -5.0f;       // Gripper thẳng
+            robot.fingers = 90.0f - easeReverse * 5.0f; // Gripper mở hoàn toàn
             
             if (robot.progress >= 1.0f) {
                 robot.phase = FINISHED;

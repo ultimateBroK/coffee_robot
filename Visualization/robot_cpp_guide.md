@@ -13,7 +13,8 @@ robot.cpp
 │   └── Robot robot → Instance duy nhất
 │
 ├── ⚡ HÀM TIỆN ÍCH
-│   └── smooth() → Làm mượt animation
+│   ├── smooth() → Làm mượt animation
+│   └── advancePhase() → Chuyển pha animation
 │
 ├── 🔧 KHỞI TẠO & ĐIỀU KHIỂN
 │   ├── initRobot() → Reset về vị trí ban đầu
@@ -33,7 +34,7 @@ robot.cpp
 └── 🌎 VẼ MÔI TRƯỜNG
     ├── drawTable() → Vẽ bàn
     ├── drawCoffeeMachine() → Vẽ máy pha cà phê
-    ├── drawCup() → Vẽ cốc
+    ├── drawCup() → Vẽ cốc (tối ưu hóa)
     └── drawScene() → Kết hợp toàn bộ môi trường
 ```
 
@@ -103,6 +104,8 @@ updateRobot() [được gọi 60 lần/giây]
     ├── PLACE_CUP → Đặt cốc
     ├── GO_HOME → Về vị trí ban đầu
     └── FINISHED → Dừng animation
+        ↓
+    Hoàn thành phase? → advancePhase() → Phase tiếp theo
 ```
 
 ---
@@ -114,11 +117,11 @@ updateRobot() [được gọi 60 lần/giây]
 Mục tiêu: Di chuyển cánh tay robot tới vị trí cốc
 
 Animation:
-shoulderZ: 0° → -30°     (Hạ vai xuống)
-elbow:     0° → -50°     (Gập khuỷu tay)  
-wristZ:    0° → +40°     (Nâng cổ tay lên)
-shoulderY: 0° → +10°     (Xoay vai về phía cốc)
-fingers:   90°           (Giữ gripper mở)
+shoulderZ: 0° → -25°     (Hạ vai xuống)
+elbow:     0° → -45°     (Gập khuỷu tay)  
+wristZ:    0° → +45°     (Nâng cổ tay lên)
+shoulderY: 0° → +12°     (Xoay vai về phía cốc)
+fingers:   90° → 85°     (Chuẩn bị gripper)
 
 Hình ảnh minh họa:
      Vị trí ban đầu         →        Vị trí cuối
@@ -136,13 +139,14 @@ Mục tiêu: Xoay gripper và đóng để nắm chặt cốc
 
 Animation:
 wristY: 0° → -90°        (Xoay gripper thẳng hàng với cốc)
-fingers: 90° → 30°       (Đóng gripper để nắm cốc)
-shoulderZ: -30° → -22°   (Nhấc cốc lên khỏi bàn một chút)
+fingers: 85° → 62°       (Đóng gripper để nắm cốc)
+shoulderZ: -25° → -15°   (Nhấc cốc lên khỏi bàn)
+elbow: -45° → -40°       (Điều chỉnh khuỷu tay)
 
 Logic đặc biệt:
-- 50% đầu: Chỉ xoay gripper
-- 50% sau: Đóng gripper
-- 70% cuối: Bắt đầu nhấc cốc (holdingCup = true)
+- 40% đầu: Chuẩn bị gripper (85° → 81°)
+- 60% sau: Đóng gripper (81° → 62°)
+- 50% cuối: Bắt đầu nhấc cốc (holdingCup = true)
 ```
 
 ### 🟡 **GIAI ĐOẠN 3: TURN_TO_MACHINE**
@@ -151,10 +155,11 @@ Mục tiêu: Xoay robot 180° về phía máy pha cà phê
 
 Animation:
 body: 0° → -180°                    (Xoay thân robot)
-shoulderY: 10° → 25°                (Điều chỉnh vai ngang)
-shoulderZ: -22° → -5°               (Nâng vai lên)
-elbow: -50° → -20°                  (Duỗi khuỷu tay)
-wristZ: 40° → 90°                   (Nâng cổ tay lên cao)
+shoulderY: 12° → 30°                (Điều chỉnh vai ngang)
+shoulderZ: -15° → -5°               (Nâng vai lên)
+elbow: -40° → -15°                  (Duỗi khuỷu tay)
+wristZ: 45° → 55°                   (Nâng cổ tay lên cao)
+wristY: -90° → -85°                 (Điều chỉnh nhẹ gripper)
 
 Hình ảnh:
 Ban đầu:               Cuối:
@@ -167,8 +172,8 @@ Ban đầu:               Cuối:
 Mục tiêu: Giữ cốc ổn định dưới vòi pha cà phê
 
 Animation:
-wristZ: 90°              (Cốc thẳng đứng)
-wristY: -90°             (Gripper hướng đúng)
+wristZ:  55°               (Điều chỉnh cốc thẳng đứng)
+wristY: -85° → -90°        (Tinh chỉnh gripper)
 Thời gian: 1.5 lần thường (để pha cà phê)
 
 Kết quả: cupHasCoffee = true
@@ -179,10 +184,13 @@ Kết quả: cupHasCoffee = true
 Mục tiêu: Đảo ngược chuyển động để quay về bàn
 
 Animation (đảo ngược TURN_TO_MACHINE):
-reverse = 1.0 - progress
+reverse = 1.0 - s
 body: reverse * -180°               (Xoay thân về 0°)
-shoulderY: 10° + reverse * 15°      (Đưa vai về vị trí)
-shoulderZ: -22° + reverse * 17°     (Hạ vai xuống)
+shoulderY: 12° + reverse * 18°      (Đưa vai về vị trí)
+shoulderZ: -15° + reverse * 10°     (Hạ vai xuống)
+elbow: -40° + reverse * 25°         (Gập khuỷu tay)
+wristZ: 45° + reverse * 10°         (Hạ cổ tay)
+wristY: -90° + reverse * 5°         (Điều chỉnh gripper)
 ```
 
 ### 🟢 **GIAI ĐOẠN 6: PLACE_CUP**
@@ -190,13 +198,14 @@ shoulderZ: -22° + reverse * 17°     (Hạ vai xuống)
 Mục tiêu: Hạ cốc xuống bàn và thả ra
 
 Animation:
-shoulderZ: -30° → -38°              (Hạ vai để đặt cốc)
-wristZ: 40° → 30°                   (Hạ cổ tay)
+shoulderZ: -25° → -35°              (Hạ vai để đặt cốc)
+elbow: -40° → -45°                  (Điều chỉnh khuỷu tay)
+wristZ: 45° → 30°                   (Hạ cổ tay)
 wristY: -90° → 0°                   (Xoay gripper về vị trí ban đầu)
 
 Logic thả cốc:
-- 60% đầu: Chỉ hạ cốc
-- 40% cuối: holdingCup = false, fingers: 30° → 90°
+- 50% đầu: Chỉ hạ cốc
+- 50% cuối: holdingCup = false, fingers: 30° → 90° (mở mượt mà)
 ```
 
 ### 🟢 **GIAI ĐOẠN 7: GO_HOME**
@@ -204,12 +213,14 @@ Logic thả cốc:
 Mục tiêu: Đưa tất cả khớp về vị trí trung tính (0°)
 
 Animation (đảo ngược tất cả):
-shoulderY: → 0°
-shoulderZ: → 0°
-elbow: → 0°
-wristZ: → 0°
-wristY: → 0°
-fingers: → 90°
+reverse2 = 1.0 - s
+easeReverse = smooth(reverse2);      (Làm mượt đường về)
+shoulderY: easeReverse * 12°        (Về 0°)
+shoulderZ: easeReverse * -35°       (Về 0°)
+elbow: easeReverse * -45°           (Về 0°)
+wristZ: easeReverse * 30°           (Về 0°)
+wristY: easeReverse * -5°           (Về 0°)
+fingers: 90° - easeReverse * 5°     (Về 90°)
 
 Kết quả: robot.moving = false, phase = FINISHED
 ```
@@ -288,38 +299,35 @@ drawRobot()
 
 ---
 
-## ⚙️ Hướng dẫn tùy chỉnh animation
+## ⚙️ Tối ưu hóa và cải tiến
 
-### 🎮 **Thay đổi tốc độ từng giai đoạn:**
+### 🔄 **Hàm advancePhase()**
 ```cpp
-// Trong updateRobot(), thay đổi điều kiện chuyển giai đoạn:
-
-case POUR_COFFEE:
-    // Tăng thời gian pha cà phê
-    if (robot.progress >= 2.0f) {  // Từ 1.5f → 2.0f
-        robot.cupHasCoffee = true;
-        robot.phase = RETURN_CUP;
-        robot.progress = 0.0f;
-    }
-    break;
-```
-
-### 🎮 **Thay đổi góc chuyển động:**
-```cpp
-case REACH_CUP:
-    // Làm robot hạ vai xuống nhiều hơn
-    robot.shoulderZ = s * -45.0f;  // Từ -30° → -45°
-    robot.elbow = s * -70.0f;      // Từ -50° → -70°
-    // ...
-```
-
-### 🎮 **Thay đổi màu sắc:**
-```cpp
-void drawRobotBase() {
-    // Thay đổi màu đế robot
-    drawSimpleBox(1.8f, 0.2f, 1.8f, 0.1f, 0.2f, 0.8f);  // Màu xanh dương
+// Hàm tiện ích để chuyển pha animation, giảm mã lặp
+void advancePhase(RobotPhase newPhase, const char* message) {
+    robot.phase = newPhase;
+    robot.progress = 0.0f;
+    printf("%s\n", message);
 }
 ```
+- **Tối ưu**: Giảm lặp lại code khi chuyển phase
+- **Dễ bảo trì**: Thay đổi logic chuyển phase tại một nơi duy nhất
+
+### 🔄 **Tối ưu vẽ cốc**
+```cpp
+// Tận dụng lại các phép biến đổi từ drawRobotArm để tối ưu hóa
+// Di chuyển đến vị trí gripper (dùng ít phép biến đổi hơn)
+```
+- **Hiệu suất**: Giảm số lượng phép biến đổi ma trận
+- **Dễ đọc**: Tổ chức code thành các khối logic rõ ràng
+
+### 🔄 **Làm mượt chuyển động**
+```cpp
+// Trong GO_HOME:
+float easeReverse = smooth(reverse2); // Áp dụng hàm smooth cho chuyển động về
+```
+- **Chuyển động tự nhiên hơn**: Áp dụng hàm smooth nhiều lần
+- **Tinh chỉnh**: Các thông số góc được điều chỉnh để chuyển động mượt mà
 
 ---
 
@@ -360,4 +368,5 @@ const float ARM_LOWER = 1.4f;
 - `robot.cpp` chứa **toàn bộ logic robot** - từ animation đến vẽ 3D
 - **updateRobot()** là trái tim của hệ thống animation
 - **Hệ thống vẽ** sử dụng OpenGL transformation hierarchy
-- **Dễ dàng tùy chỉnh** bằng cách thay đổi các tham số trong switch cases 
+- **Dễ dàng tùy chỉnh** bằng cách thay đổi các tham số trong switch cases
+- **Tối ưu hóa** với hàm advancePhase() và cải tiến vẽ cốc 

@@ -107,7 +107,7 @@ void keyboard(unsigned char key, int x, int y) {
         case ' ': // Phím Space - bắt đầu quy trình pha cà phê
             if (!robot.moving) {
                 startCoffeeSequence();
-                std::cout << "🤖 Bat dau quy trinh pha ca phe..." << std::endl;
+                // std::cout << "🤖 Bat dau quy trinh pha ca phe..." << std::endl;
             } else {
                 std::cout << "⚠️  Robot dang ban. Nhan R de reset." << std::endl;
             }
