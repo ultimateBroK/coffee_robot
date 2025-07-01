@@ -180,7 +180,7 @@ void specialKeys(int key, int x, int y) {
 // TIMER ANIMATION - Cập nhật animation với tốc độ 60 FPS
 //=============================================================================
 void timer(int value) {
-    updateRobot();                    // Cập nhật trạng thái robot (từ robot_simple.cpp)
+    updateRobot();                    // Cập nhật trạng thái robot (từ robot.cpp)
     glutPostRedisplay();              // Yêu cầu vẽ lại frame mới
     glutTimerFunc(16, timer, 0);      // Lặp lại sau 16ms (~60 FPS)
 }
